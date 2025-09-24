@@ -413,7 +413,7 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center gap-4 px-4 md:px-6">
           <FlaskConical className="h-8 w-8 text-primary" />
           <h1 className="font-headline text-xl font-bold tracking-tight text-foreground md:text-2xl">
-            TraceBack Analytics
+            TraceBack Analytics <span className="text-sm font-normal text-muted-foreground">by prabha</span>
           </h1>
         </div>
       </header>
