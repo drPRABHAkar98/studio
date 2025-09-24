@@ -291,15 +291,32 @@ export default function Home() {
   const watchedGroups = form.watch('groups');
   
   const handleExport = () => {
-    if (!forwardTestResults) return;
+    if (!analysisResult || !forwardTestResults) return;
 
-    const { analysisName, units, date, experimentName } = form.getValues();
+    const { analysisName, units, date, experimentName, standardCurve: standardCurveData } = form.getValues();
+    const { m, c, rSquare } = analysisResult.standardCurve;
+    
+    let csvContent:any[] = [];
 
-    const analysisDetails = [
-      { "Analysis Name": analysisName, "Units": units, "Date": date, "Experiment Name": experimentName },
-      {} // blank row
-    ];
+    // Analysis Details
+    csvContent.push({ "Analysis Name": analysisName, "Units": units, "Date": date, "Experiment Name": experimentName });
+    csvContent.push({}); // Blank row
 
+    // Standard Curve Info
+    csvContent.push({ "Standard Curve Equation": `y = ${m.toFixed(4)}x + ${c.toFixed(4)}`, "R² Value": rSquare.toFixed(4) });
+    csvContent.push({}); // Blank row
+
+    // Standard Curve Data Table
+    csvContent.push({ "Standard Curve Data": ""});
+    const standardCurveForCsv = standardCurveData.map(point => ({
+        'Std. Concentration': point.concentration,
+        'Std. Absorbance': point.absorbance
+    }));
+    csvContent = csvContent.concat(standardCurveForCsv);
+    csvContent.push({}); // Blank row
+
+    // Forward Test Results
+    csvContent.push({ "Forward Test Results": ""});
     const dataForCsv = forwardTestResults.flatMap(group =>
       group.sampleData.map(sample => ({
         Group: group.groupName,
@@ -312,8 +329,10 @@ export default function Home() {
         'Group SD Conc.': group.concentrationSD.toFixed(4),
       }))
     );
+    
+    csvContent = csvContent.concat(dataForCsv);
 
-    const csv = Papa.unparse(analysisDetails.concat(dataForCsv));
+    const csv = Papa.unparse(csvContent);
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
