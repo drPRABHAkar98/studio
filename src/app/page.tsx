@@ -210,10 +210,10 @@ export default function Home() {
       return;
     }
 
-    const group1 = groups.find(g => g.name === g1name);
-    const group2 = groups.find(g => g.name === g2name);
+    const group1Data = groups.find(g => g.name === g1name);
+    const group2Data = groups.find(g => g.name === g2name);
     
-    if (!group1 || !group2) {
+    if (!group1Data || !group2Data) {
       toast({ variant: "destructive", title: "Could not find selected groups."});
       return;
     }
@@ -221,10 +221,19 @@ export default function Home() {
     setIsTesting(true);
     setTestResult(null);
     try {
-      // The performStatisticalTest action now expects an array of two groups
       const testInput: StatisticalTestInput = {
-        group1,
-        group2,
+        group1: {
+          name: group1Data.name,
+          mean: Number(group1Data.mean),
+          sd: Number(group1Data.sd),
+          samples: Number(group1Data.samples),
+        },
+        group2: {
+          name: group2Data.name,
+          mean: Number(group2Data.mean),
+          sd: Number(group2Data.sd),
+          samples: Number(group2Data.samples),
+        },
         test: statisticalTest,
       };
       const result = await performStatisticalTest(testInput);
