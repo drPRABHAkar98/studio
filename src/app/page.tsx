@@ -6,6 +6,8 @@ import { useFieldArray, useForm } from "react-hook-form";
 import * as z from "zod";
 import { useState } from "react";
 import Papa from "papaparse";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   FlaskConical,
   Plus,
@@ -22,6 +24,7 @@ import {
   Sparkles,
   Download,
   BookUser,
+  FileText,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -81,7 +84,9 @@ export default function Home() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [testResult, setTestResult] = useState<StatisticalTestResult | null>(null);
+  const resultsRef = React.useRef(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -349,6 +354,47 @@ export default function Home() {
       description: "Your data has been downloaded as a CSV file.",
     });
   };
+
+  const handleExportPdf = async () => {
+    if (!resultsRef.current) return;
+    setIsExporting(true);
+
+    try {
+      const canvas = await html2canvas(resultsRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: null, 
+      });
+      
+      const imgData = canvas.toDataURL("image/png");
+      
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+      const { analysisName } = form.getValues();
+      pdf.save(`${analysisName || 'analysis'}-results.pdf`);
+
+      toast({
+        title: "Export Successful",
+        description: "Your data has been downloaded as a PDF file.",
+      });
+
+    } catch (error) {
+      console.error("PDF Export failed:", error);
+      toast({
+        variant: "destructive",
+        title: "PDF Export Failed",
+        description: "Could not generate PDF. Please try again.",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -797,7 +843,7 @@ export default function Home() {
         </Form>
 
         {analysisResult && (
-          <div className="mt-8 space-y-8">
+          <div className="mt-8 space-y-8" ref={resultsRef}>
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-3">
@@ -865,7 +911,7 @@ export default function Home() {
             {forwardTestResults && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500">
                         <CheckCircle2 className="h-6 w-6" />
@@ -879,10 +925,16 @@ export default function Home() {
                         </CardDescription>
                       </div>
                     </div>
-                    <Button onClick={handleExport} variant="outline" size="sm">
-                      <Download className="mr-2 h-4 w-4" />
-                      Export to CSV
-                    </Button>
+                    <div className="flex gap-2">
+                       <Button onClick={handleExport} variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Export to CSV
+                      </Button>
+                       <Button onClick={handleExportPdf} variant="outline" size="sm" disabled={isExporting}>
+                        {isExporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        Export to PDF
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
