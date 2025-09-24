@@ -158,12 +158,24 @@ export default function Home() {
         });
         return;
     }
+    
+    const firstAbsorbance = typeof firstPoint.absorbance === 'string' ? parseFloat(firstPoint.absorbance) : firstPoint.absorbance;
+    const lastAbsorbance = typeof lastPoint.absorbance === 'string' ? parseFloat(lastPoint.absorbance) : lastPoint.absorbance;
 
-    const slope = (lastPoint.absorbance - firstPoint.absorbance) / (lastPoint.concentration - firstPoint.concentration);
+    if (isNaN(firstAbsorbance) || isNaN(lastAbsorbance)) {
+       toast({
+            variant: "destructive",
+            title: "Invalid absorbance values",
+            description: "First and last absorbance values must be numbers.",
+        });
+        return;
+    }
+
+    const slope = (lastAbsorbance - firstAbsorbance) / (lastPoint.concentration - firstPoint.concentration);
 
     for (let i = 1; i < points.length - 1; i++) {
         const concentration = points[i].concentration;
-        const absorbance = firstPoint.absorbance + slope * (concentration - firstPoint.concentration);
+        const absorbance = firstAbsorbance + slope * (concentration - firstPoint.concentration);
         updateStandardPoint(i, { ...points[i], absorbance: parseFloat(absorbance.toFixed(4)) });
     }
 
@@ -595,5 +607,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
