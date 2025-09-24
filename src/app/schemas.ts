@@ -15,6 +15,15 @@ export const standardPointSchema = z.object({
   absorbance: z.coerce.number({ invalid_type_error: "Must be a number." }).nonnegative(),
 });
 
+export const statisticalTestSchema = z.object({
+  group1: z.string().min(1, "Please select a group."),
+  group2: z.string().min(1, "Please select a group."),
+  test: z.string().min(1, "Please select a test."),
+  significanceLevel: z.string().min(1, "Please select a level."),
+});
+
+export type StatisticalTest = z.infer<typeof statisticalTestSchema>;
+
 export const formSchema = z.object({
   analysisName: z.string().optional(),
   units: z.string().optional(),
@@ -24,8 +33,5 @@ export const formSchema = z.object({
   standardCurve: z
     .array(standardPointSchema)
     .min(2, "At least two points are needed for the curve."),
-  statisticalTest: z.string().min(1, "Please select a test."),
-  significanceLevel: z.string().min(1, "Please select a level."),
-  group1: z.string().optional(),
-  group2: z.string().optional(),
+  statisticalTests: z.array(statisticalTestSchema)
 });

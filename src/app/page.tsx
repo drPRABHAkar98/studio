@@ -57,11 +57,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import type { AnalysisResult, StatisticalTestResult } from "./actions";
 import { runAnalysis, performStatisticalTest } from "./actions";
 import { formSchema } from "./schemas";
 import type { StatisticalTestInput } from "@/ai/flows/statistical-analysis.schemas";
+import type { StatisticalTest } from "./schemas";
 
 
 // Helper function to calculate standard deviation
@@ -73,6 +75,12 @@ const calculateSD = (data: number[]): number => {
     return Math.sqrt(variance);
 };
 
+export type TestResultState = {
+  [key: string]: {
+    isLoading: boolean;
+    result: StatisticalTestResult | null;
+  }
+}
 
 export default function Home() {
   const { toast } = useToast();
@@ -80,8 +88,8 @@ export default function Home() {
     null
   );
   const [isLoading, setIsLoading] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testResult, setTestResult] = useState<StatisticalTestResult | null>(null);
+  const [testResults, setTestResults] = useState<TestResultState>({});
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -100,10 +108,14 @@ export default function Home() {
         { concentration: 20, absorbance: 0.4 },
         { concentration: 30, absorbance: 0.6 },
       ],
-      statisticalTest: "t-test",
-      significanceLevel: "0.05",
-      group1: "Normal",
-      group2: "Diseased",
+      statisticalTests: [
+        {
+          group1: "Normal",
+          group2: "Diseased",
+          test: "t-test",
+          significanceLevel: "0.05",
+        }
+      ]
     },
   });
 
@@ -125,6 +137,16 @@ export default function Home() {
     control: form.control,
     name: "standardCurve",
   });
+
+  const {
+    fields: statTestFields,
+    append: appendStatTest,
+    remove: removeStatTest,
+  } = useFieldArray({
+    control: form.control,
+    name: "statisticalTests",
+  });
+
 
   function autoFillAbsorbance() {
     const points = form.getValues("standardCurve");
@@ -204,8 +226,9 @@ export default function Home() {
     }
   }
 
-  async function onRunTest() {
-    const { group1: g1name, group2: g2name, statisticalTest, groups } = form.getValues();
+  async function onRunTest(testIndex: number, testData: StatisticalTest) {
+    const { group1: g1name, group2: g2name, test } = testData;
+    const { groups } = form.getValues();
 
     if (!g1name || !g2name) {
       toast({ variant: "destructive", title: "Please select two groups to compare." });
@@ -225,8 +248,8 @@ export default function Home() {
       return;
     }
 
-    setIsTesting(true);
-    setTestResult(null);
+    setTestResults(prev => ({ ...prev, [testIndex]: { isLoading: true, result: null }}));
+
     try {
       const testInput: StatisticalTestInput = {
         group1: {
@@ -241,10 +264,10 @@ export default function Home() {
           sd: Number(group2Data.sd),
           samples: Number(group2Data.samples),
         },
-        test: statisticalTest,
+        test: test,
       };
       const result = await performStatisticalTest(testInput);
-      setTestResult(result);
+      setTestResults(prev => ({ ...prev, [testIndex]: { isLoading: false, result }}));
       toast({ title: "Statistical test complete."});
     } catch (error) {
       console.error(error);
@@ -254,8 +277,7 @@ export default function Home() {
         description:
           error instanceof Error ? error.message : "An unknown error occurred.",
       });
-    } finally {
-      setIsTesting(false);
+      setTestResults(prev => ({ ...prev, [testIndex]: { isLoading: false, result: null }}));
     }
   }
 
@@ -288,7 +310,7 @@ export default function Home() {
   const handleExport = () => {
     if (!analysisResult || !forwardTestResults) return;
   
-    const { analysisName, units, date, experimentName, standardCurve: standardCurveInputData, groups: initialGroups } = form.getValues();
+    const { analysisName, units, date, experimentName, standardCurve: standardCurveInputData, groups: initialGroups, statisticalTests } = form.getValues();
     const { m, c, rSquare } = analysisResult.standardCurve;
   
     let csvData: any[] = [];
@@ -330,8 +352,28 @@ export default function Home() {
         }
     });
     csvData.push([]); // Blank row
+
+    // 4. Statistical Test Results
+    if (Object.keys(testResults).length > 0) {
+      csvData.push(["Statistical Test Results"]);
+      csvData.push(["Comparison", "Test Type", "Significance Level", "P-Value", "Result"]);
+      statisticalTests.forEach((test, index) => {
+        const testResult = testResults[index]?.result;
+        if (testResult) {
+          const significant = testResult.pValue < parseFloat(test.significanceLevel);
+          csvData.push([
+            `${test.group1} vs ${test.group2}`,
+            test.test,
+            `< ${test.significanceLevel}`,
+            testResult.pValue.toExponential(4),
+            significant ? "Significant" : "Not Significant"
+          ]);
+        }
+      });
+      csvData.push([]); // Blank row
+    }
   
-    // 4. Detailed Sample Data
+    // 5. Detailed Sample Data
     csvData.push(["Detailed Sample Data"]);
     csvData.push(["Group", "Sample", "TraceBack Absorbance", "Calculated Concentration"]);
     forwardTestResults.forEach(group => {
@@ -569,138 +611,175 @@ export default function Home() {
                           3. Statistical Analysis
                         </CardTitle>
                         <CardDescription>
-                          Select groups and test parameters for significance analysis.
+                          Configure and run multiple statistical comparisons.
                         </CardDescription>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <FormField
-                          control={form.control}
-                          name="group1"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Compare Group</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a group" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
+                     {statTestFields.map((field, index) => {
+                      const testResult = testResults[index];
+                      const currentTest = form.getValues('statisticalTests')[index];
+                       return (
+                        <div key={field.id} className="space-y-4 rounded-lg border p-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-semibold">Comparison #{index + 1}</h4>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeStatTest(index)}
+                              disabled={statTestFields.length <= 1}
+                              aria-label="Remove test"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                              <FormField
+                                control={form.control}
+                                name={`statisticalTests.${index}.group1`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Compare Group</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select a group" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`statisticalTests.${index}.group2`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>With Group</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                      <FormControl>
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select a group" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent>
+                                        {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
+                                      </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name={`statisticalTests.${index}.test`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Statistical Test</FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select a test" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="t-test">
+                                      T-test
+                                    </SelectItem>
+                                    <SelectItem value="anova">ANOVA</SelectItem>
+                                    <SelectItem value="mann-whitney">
+                                      Mann-Whitney U
+                                    </SelectItem>
+                                    <SelectItem value="kruskal-wallis">
+                                      Kruskal-Wallis
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`statisticalTests.${index}.significanceLevel`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Significance Level (p)</FormLabel>
+                                <Select
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select a p-value" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="0.05">&lt; 0.05</SelectItem>
+                                    <SelectItem value="0.01">&lt; 0.01</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          </div>
+                          <Button type="button" className="w-full" disabled={testResult?.isLoading} onClick={() => onRunTest(index, currentTest)}>
+                            {testResult?.isLoading ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Calculating...
+                              </>
+                            ) : (
+                              <>
+                              <Sparkles className="mr-2 h-5 w-5" />
+                              Run Test #{index + 1}
+                              </>
+                            )}
+                          </Button>
+                          {testResult?.result && (
+                              <div className="space-y-2 rounded-lg border bg-muted/50 p-4">
+                                  <h4 className="font-headline text-md font-semibold">Test Result</h4>
+                                  <p className="text-sm">
+                                      Calculated p-value: <span className="font-mono font-bold text-primary">{testResult.result.pValue.toExponential(4)}</span>
+                                  </p>
+                                  <p className={cn("text-sm font-medium", testResult.result.pValue < parseFloat(currentTest.significanceLevel) ? "text-green-500" : "text-amber-500")}>
+                                      {testResult.result.pValue < parseFloat(currentTest.significanceLevel)
+                                      ? "The difference is statistically significant."
+                                      : "The difference is not statistically significant."}
+                                  </p>
+                              </div>
                           )}
-                        />
-                         <FormField
-                          control={form.control}
-                          name="group2"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>With Group</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select a group" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                   {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
-                                </SelectContent>
-                              </Select>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="statisticalTest"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Statistical Test</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a test" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="t-test">
-                                T-test
-                              </SelectItem>
-                              <SelectItem value="anova">ANOVA</SelectItem>
-                              <SelectItem value="mann-whitney">
-                                Mann-Whitney U
-                              </SelectItem>
-                              <SelectItem value="kruskal-wallis">
-                                Kruskal-Wallis
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="significanceLevel"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Significance Level (p)</FormLabel>
-                           <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select a p-value" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="0.05">&lt; 0.05</SelectItem>
-                              <SelectItem value="0.01">&lt; 0.01</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    </div>
-                     <Button type="button" className="w-full" disabled={isTesting} onClick={onRunTest}>
-                      {isTesting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Calculating...
-                        </>
-                      ) : (
-                        <>
-                        <Sparkles className="mr-2 h-5 w-5" />
-                        Run Test
-                        </>
-                      )}
-                    </Button>
-                    {testResult && (
-                        <div className="space-y-2 rounded-lg border bg-muted/50 p-4">
-                            <h4 className="font-headline text-md font-semibold">Test Result</h4>
-                            <p className="text-sm">
-                                Calculated p-value: <span className="font-mono font-bold text-primary">{testResult.pValue.toExponential(4)}</span>
-                            </p>
-                             <p className={cn("text-sm font-medium", testResult.pValue < parseFloat(form.getValues('significanceLevel')) ? "text-green-500" : "text-amber-500")}>
-                                {testResult.pValue < parseFloat(form.getValues('significanceLevel'))
-                                ? "The difference is statistically significant."
-                                : "The difference is not statistically significant."}
-                            </p>
+                          {index < statTestFields.length - 1 && <Separator />}
                         </div>
-                    )}
+                       )
+                      })}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          appendStatTest({
+                            group1: '',
+                            group2: '',
+                            test: 't-test',
+                            significanceLevel: '0.05',
+                          })
+                        }
+                        className="w-full"
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Add Test
+                      </Button>
                   </CardContent>
                 </Card>
               </div>

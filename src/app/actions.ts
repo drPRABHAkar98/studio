@@ -6,7 +6,7 @@ import { runStatisticalTest } from '@/ai/flows/statistical-analysis';
 import type { StatisticalTestInput } from '@/ai/flows/statistical-analysis.schemas';
 import { calculateLinearRegression } from '@/lib/analysis';
 import { formSchema } from './schemas';
-import type { AbsorbanceValueTracebackInput } from '@/ai/flows/absorbance-value-traceback.schemas';
+import type { AbsorbanceValueTracebackInput } from '@/ai/flows/absorbance-value-traceback';
 
 
 export type AnalysisResult = {
