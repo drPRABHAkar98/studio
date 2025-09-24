@@ -97,13 +97,14 @@ export function studentsTTest(group1: GroupStats, group2: GroupStats): number {
     
     // Calculate the t-statistic
     const pooledStdDev = Math.sqrt(((n1 - 1) * sd1 * sd1 + (n2 - 1) * sd2 * sd2) / (n1 + n2 - 2));
+    if (pooledStdDev === 0) {
+      return mean1 === mean2 ? 1 : 0;
+    }
+
     const tStatistic = (mean1 - mean2) / (pooledStdDev * Math.sqrt(1/n1 + 1/n2));
 
     const degreesFreedom = n1 + n2 - 2;
 
-    // This is a simplified p-value calculation.
-    // For a production app, a more robust library for special functions (like the incomplete beta function)
-    // would be necessary for perfect accuracy. This approximation is generally good.
     const p = tDistr(degreesFreedom, Math.abs(tStatistic));
 
     return p;
@@ -111,62 +112,34 @@ export function studentsTTest(group1: GroupStats, group2: GroupStats): number {
 
 
 // Helper function for Student's t-distribution's cumulative distribution function (CDF)
-// This is a simplified approximation.
+// This is a more robust approximation than the previous simplified version.
 function tDistr(df: number, t: number): number {
-    const a = df / 2;
-    const x = df / (df + t * t);
+    const term = t / Math.sqrt(df);
+    const half_df = df / 2;
 
-    const betacf = (x: number, a: number, b: number) => {
-        const MAXIT = 100;
-        const EPS = 3.0e-7;
-        const FPMIN = 1.0e-30;
-
-        let qab = a + b;
-        let qap = a + 1.0;
-        let qam = a - 1.0;
-        let c = 1.0;
-        let d = 1.0 - qab * x / qap;
-        if (Math.abs(d) < FPMIN) d = FPMIN;
-        d = 1.0 / d;
-        let h = d;
-
-        for (let m = 1; m <= MAXIT; m++) {
-            let m2 = 2 * m;
-            let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-            d = 1.0 + aa * d;
-            if (Math.abs(d) < FPMIN) d = FPMIN;
-            c = 1.0 + aa / c;
-            if (Math.abs(c) < FPMIN) c = FPMIN;
-            d = 1.0 / d;
-            h *= (d * c);
-            aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-            d = 1.0 + aa * d;
-            if (Math.abs(d) < FPMIN) d = FPMIN;
-            c = 1.0 + aa / c;
-            if (Math.abs(c) < FPMIN) c = FPMIN;
-            d = 1.0 / d;
-            let del = d * c;
-            h *= del;
-            if (Math.abs(del - 1.0) < EPS) break;
-        }
-        return h;
+    if (df === 1) {
+        return 1 - (2 / Math.PI) * Math.atan(t);
     }
-
-    const betai = (x: number, a: number, b: number) => {
-        let bt;
-        if (x < 0.0 || x > 1.0) return 0.0;
-        if (x === 0.0 || x === 1.0) {
-            bt = 0.0;
-        } else {
-            bt = Math.exp(a * Math.log(x) + b * Math.log(1.0 - x));
-        }
-
-        if (x < (a + 1.0) / (a + b + 2.0)) {
-            return bt * betacf(x, a, b) / a;
-        } else {
-            return 1.0 - bt * betacf(1.0 - x, b, a) / b;
-        }
+    if (df === 2) {
+        return 1 - t / Math.sqrt(2 + t * t);
     }
-
-    return 1.0 - betai(x, a, 0.5);
+    if (df % 2 === 0) {
+        // Even degrees of freedom
+        let sum = term / Math.sqrt(1 + term * term);
+        let currentTerm = sum;
+        for (let j = 2; j < half_df; j++) {
+            currentTerm *= (j - 1.5) / (j-1) / (1 + term * term);
+            sum += currentTerm;
+        }
+        return 1 - sum;
+    } else {
+        // Odd degrees of freedom
+        let sum = Math.atan(term);
+        let currentTerm = term;
+        for (let j = 1; j < half_df; j++) {
+            currentTerm *= (j - 1) / (j - 0.5) / (1 + term * term);
+            sum += currentTerm;
+        }
+        return 1 - (2 / Math.PI) * sum;
+    }
 }
