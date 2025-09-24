@@ -15,6 +15,7 @@ import {
   FlaskRound,
   Calculator,
   Sigma,
+  Wand2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -129,10 +130,49 @@ export default function Home() {
     fields: standardCurveFields,
     append: appendStandardPoint,
     remove: removeStandardPoint,
+    update: updateStandardPoint,
   } = useFieldArray({
     control: form.control,
     name: "standardCurve",
   });
+
+  function autoFillAbsorbance() {
+    const points = form.getValues("standardCurve");
+    if (points.length < 2) {
+      toast({
+        variant: "destructive",
+        title: "Not enough data points",
+        description: "You need at least two points to create a linear curve.",
+      });
+      return;
+    }
+
+    const firstPoint = points[0];
+    const lastPoint = points[points.length - 1];
+
+    if (firstPoint.concentration === lastPoint.concentration) {
+        toast({
+            variant: "destructive",
+            title: "Invalid concentrations",
+            description: "First and last concentration values cannot be the same.",
+        });
+        return;
+    }
+
+    const slope = (lastPoint.absorbance - firstPoint.absorbance) / (lastPoint.concentration - firstPoint.concentration);
+
+    for (let i = 1; i < points.length - 1; i++) {
+        const concentration = points[i].concentration;
+        const absorbance = firstPoint.absorbance + slope * (concentration - firstPoint.concentration);
+        updateStandardPoint(i, { ...points[i], absorbance: parseFloat(absorbance.toFixed(4)) });
+    }
+
+    toast({
+        title: "Auto-fill Complete",
+        description: "Intermediate absorbance values have been calculated.",
+    });
+  }
+
 
   async function onSubmit(values: FormValues) {
     setIsLoading(true);
@@ -419,16 +459,27 @@ export default function Home() {
                         </div>
                       ))}
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        appendStandardPoint({ concentration: 0, absorbance: 0 })
-                      }
-                      className="w-full"
-                    >
-                      <Plus className="mr-2 h-4 w-4" /> Add Standard Point
-                    </Button>
+                     <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          appendStandardPoint({ concentration: 0, absorbance: 0 })
+                        }
+                        className="flex-1"
+                      >
+                        <Plus className="mr-2 h-4 w-4" /> Add Point
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={autoFillAbsorbance}
+                        className="flex-1"
+                        disabled={standardCurveFields.length < 2}
+                      >
+                        <Wand2 className="mr-2 h-4 w-4" /> Auto-fill Absorbance
+                      </Button>
+                    </div>
                     <Separator />
                     <div className="grid grid-cols-2 gap-4">
                        <FormField
@@ -544,3 +595,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
