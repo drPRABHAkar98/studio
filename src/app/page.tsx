@@ -18,6 +18,7 @@ import {
   Sigma,
   Wand2,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -54,35 +55,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import type { AnalysisResult } from "./actions";
-import { runAnalysis } from "./actions";
-import { Separator } from "@/components/ui/separator";
+import type { AnalysisResult, StatisticalTestResult } from "./actions";
+import { runAnalysis, performStatisticalTest } from "./actions";
+import { formSchema } from "./schemas";
+import type { StatisticalTestInput } from "@/ai/flows/statistical-analysis.schemas";
 
-const groupSchema = z.object({
-  name: z.string().min(1, "Name is required."),
-  mean: z.coerce.number({ invalid_type_error: "Must be a number." }).positive("Must be positive."),
-  sd: z.coerce.number({ invalid_type_error: "Must be a number." }).nonnegative("Cannot be negative."),
-  samples: z.coerce
-    .number({ invalid_type_error: "Must be a number." })
-    .int()
-    .min(1, "At least 1 sample."),
-});
-
-const standardPointSchema = z.object({
-  concentration: z.coerce.number({ invalid_type_error: "Must be a number." }).nonnegative(),
-  absorbance: z.coerce.number({ invalid_type_error: "Must be a number." }).nonnegative(),
-});
-
-const formSchema = z.object({
-  groups: z.array(groupSchema).min(1, "At least one group is required."),
-  standardCurve: z
-    .array(standardPointSchema)
-    .min(2, "At least two points are needed for the curve."),
-  statisticalTest: z.string(),
-  pValue: z.string(),
-});
-
-type FormValues = z.infer<typeof formSchema>;
 
 // Helper function to calculate standard deviation
 const calculateSD = (data: number[]): number => {
@@ -100,8 +77,10 @@ export default function Home() {
     null
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<StatisticalTestResult | null>(null);
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       groups: [
@@ -115,7 +94,9 @@ export default function Home() {
         { concentration: 30, absorbance: 0.6 },
       ],
       statisticalTest: "t-test",
-      pValue: "0.05",
+      significanceLevel: "0.05",
+      group1: "Normal",
+      group2: "Diseased",
     },
   });
 
@@ -193,7 +174,7 @@ export default function Home() {
   }
 
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setAnalysisResult(null);
     try {
@@ -213,6 +194,52 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function onRunTest() {
+    const { group1: g1name, group2: g2name, statisticalTest, groups } = form.getValues();
+
+    if (!g1name || !g2name) {
+      toast({ variant: "destructive", title: "Please select two groups to compare." });
+      return;
+    }
+
+    if (g1name === g2name) {
+      toast({ variant: "destructive", title: "Cannot compare a group to itself."});
+      return;
+    }
+
+    const group1 = groups.find(g => g.name === g1name);
+    const group2 = groups.find(g => g.name === g2name);
+    
+    if (!group1 || !group2) {
+      toast({ variant: "destructive", title: "Could not find selected groups."});
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      // The performStatisticalTest action now expects an array of two groups
+      const testInput: StatisticalTestInput = {
+        group1,
+        group2,
+        test: statisticalTest,
+      };
+      const result = await performStatisticalTest(testInput);
+      setTestResult(result);
+      toast({ title: "Statistical test complete."});
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Test Failed",
+        description:
+          error instanceof Error ? error.message : "An unknown error occurred.",
+      });
+    } finally {
+      setIsTesting(false);
     }
   }
 
@@ -244,6 +271,8 @@ export default function Home() {
       };
     });
   }, [analysisResult]);
+
+  const watchedGroups = form.watch('groups');
 
   return (
     <div className="min-h-screen bg-background">
@@ -377,12 +406,55 @@ export default function Home() {
                           3. Statistical Analysis
                         </CardTitle>
                         <CardDescription>
-                          Select test parameters for significance analysis.
+                          Select groups and test parameters for significance analysis.
                         </CardDescription>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <CardContent className="space-y-4">
+                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="group1"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Compare Group</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a group" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                         <FormField
+                          control={form.control}
+                          name="group2"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>With Group</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a group" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                   {watchedGroups.map((g) => g.name && <SelectItem key={g.name} value={g.name}>{g.name}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
                       name="statisticalTest"
@@ -417,7 +489,7 @@ export default function Home() {
                     />
                     <FormField
                       control={form.control}
-                      name="pValue"
+                      name="significanceLevel"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Significance Level (p)</FormLabel>
@@ -439,6 +511,33 @@ export default function Home() {
                         </FormItem>
                       )}
                     />
+                    </div>
+                     <Button type="button" className="w-full" disabled={isTesting} onClick={onRunTest}>
+                      {isTesting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Calculating...
+                        </>
+                      ) : (
+                        <>
+                        <Sparkles className="mr-2 h-5 w-5" />
+                        Run Test
+                        </>
+                      )}
+                    </Button>
+                    {testResult && (
+                        <div className="space-y-2 rounded-lg border bg-muted/50 p-4">
+                            <h4 className="font-headline text-md font-semibold">Test Result</h4>
+                            <p className="text-sm">
+                                Calculated p-value: <span className="font-mono font-bold text-primary">{testResult.pValue.toExponential(4)}</span>
+                            </p>
+                             <p className={cn("text-sm font-medium", testResult.pValue < parseFloat(form.getValues('significanceLevel')) ? "text-green-500" : "text-amber-500")}>
+                                {testResult.pValue < parseFloat(form.getValues('significanceLevel'))
+                                ? "The difference is statistically significant."
+                                : "The difference is not statistically significant."}
+                            </p>
+                        </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

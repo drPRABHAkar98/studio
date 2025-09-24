@@ -1,27 +1,13 @@
 'use server';
 
 import { z } from 'zod';
-import { absorbanceValueTraceback, AbsorbanceValueTracebackInput } from '@/ai/flows/absorbance-value-traceback';
+import { absorbanceValueTraceback } from '@/ai/flows/absorbance-value-traceback';
+import { runStatisticalTest } from '@/ai/flows/statistical-analysis';
+import type { StatisticalTestInput } from '@/ai/flows/statistical-analysis.schemas';
 import { calculateLinearRegression } from '@/lib/analysis';
+import { formSchema } from './schemas';
+import type { AbsorbanceValueTracebackInput } from '@/ai/flows/absorbance-value-traceback.schemas';
 
-const groupSchema = z.object({
-  name: z.string(),
-  mean: z.number(),
-  sd: z.number(),
-  samples: z.number().int(),
-});
-
-const standardPointSchema = z.object({
-  concentration: z.number(),
-  absorbance: z.number(),
-});
-
-const formSchema = z.object({
-  groups: z.array(groupSchema),
-  standardCurve: z.array(standardPointSchema),
-  statisticalTest: z.string(),
-  pValue: z.string(),
-});
 
 export type AnalysisResult = {
   standardCurve: {
@@ -83,4 +69,25 @@ export async function runAnalysis(
     }
     throw new Error('An unknown error occurred during analysis.');
   }
+}
+
+export type StatisticalTestResult = {
+  pValue: number;
+};
+
+export async function performStatisticalTest(
+  values: StatisticalTestInput
+): Promise<StatisticalTestResult> {
+    try {
+        const result = await runStatisticalTest(values);
+        return {
+            pValue: result.pValue,
+        };
+    } catch (error) {
+        console.error("Statistical test failed:", error);
+        if (error instanceof Error) {
+            throw new Error(`Statistical test failed: ${error.message}`);
+        }
+        throw new Error('An unknown error occurred during the statistical test.');
+    }
 }
