@@ -62,8 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { AnalysisResult, StatisticalTestResult } from "./actions";
 import { runAnalysis, performStatisticalTest } from "./actions";
 import { formSchema } from "./schemas";
-import type { StatisticalTestInput } from "@/ai/flows/statistical-analysis.schemas";
-import type { StatisticalTest } from "./schemas";
+import type { StatisticalTestInput, StatisticalTest } from "./schemas";
 
 
 // Helper function to calculate standard deviation
@@ -1035,3 +1034,5 @@ export default function Home() {
     </div>
   );
 }
+
+    

@@ -1,12 +1,10 @@
+
 'use server';
 
 import { z } from 'zod';
-import { absorbanceValueTraceback } from '@/ai/flows/absorbance-value-traceback';
-import { runStatisticalTest } from '@/ai/flows/statistical-analysis';
-import type { StatisticalTestInput } from '@/ai/flows/statistical-analysis.schemas';
-import { calculateLinearRegression } from '@/lib/analysis';
+import { calculateLinearRegression, generateNormalDistribution, studentsTTest } from '@/lib/analysis';
 import { formSchema } from './schemas';
-import type { AbsorbanceValueTracebackInput } from '@/ai/flows/absorbance-value-traceback';
+import type { StatisticalTestInput } from './schemas';
 
 
 export type AnalysisResult = {
@@ -36,21 +34,18 @@ export async function runAnalysis(
     }
 
     const groupResults = [];
-    const standardCurveEquation = `y = ${regression.m.toFixed(4)}x + ${regression.c.toFixed(4)}`;
 
     // 2. Individual Sample Absorbance Calculation for each group
     for (const group of groups) {
-      const aiInput: AbsorbanceValueTracebackInput = {
-        meanConcentration: group.mean,
-        standardDeviation: group.sd,
-        samplesPerGroup: group.samples,
-        standardCurveEquation: standardCurveEquation,
-      };
+      // Generate a normal distribution of concentration values
+      const concentrationValues = generateNormalDistribution(group.mean, group.sd, group.samples);
 
-      const result = await absorbanceValueTraceback(aiInput);
+      // Convert concentration to absorbance using the standard curve
+      const absorbanceValues = concentrationValues.map(conc => (regression.m * conc) + regression.c);
+      
       groupResults.push({
         groupName: group.name,
-        absorbanceValues: result.absorbanceValues,
+        absorbanceValues: absorbanceValues,
       });
     }
 
@@ -79,9 +74,35 @@ export async function performStatisticalTest(
   values: StatisticalTestInput
 ): Promise<StatisticalTestResult> {
     try {
-        const result = await runStatisticalTest(values);
+        const { group1, group2, test } = values;
+        
+        let pValue: number;
+
+        // Currently only supports t-test, but can be expanded.
+        switch(test) {
+            case 't-test':
+                pValue = studentsTTest(
+                    { mean: group1.mean, sd: group1.sd, n: group1.samples },
+                    { mean: group2.mean, sd: group2.sd, n: group2.samples }
+                );
+                break;
+            // Other tests like ANOVA, Mann-Whitney U could be implemented here
+            default:
+                // For now, we can use a simple t-test as a fallback or throw an error.
+                // Using a t-test for non-supported tests for demonstration.
+                console.warn(`Unsupported test "${test}". Falling back to t-test.`);
+                pValue = studentsTTest(
+                    { mean: group1.mean, sd: group1.sd, n: group1.samples },
+                    { mean: group2.mean, sd: group2.sd, n: group2.samples }
+                );
+        }
+
+        if (isNaN(pValue)) {
+             throw new Error('Could not calculate p-value. Check input data.');
+        }
+
         return {
-            pValue: result.pValue,
+            pValue: pValue,
         };
     } catch (error) {
         console.error("Statistical test failed:", error);

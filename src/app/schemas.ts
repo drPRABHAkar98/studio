@@ -1,3 +1,4 @@
+
 import * as z from "zod";
 
 export const groupSchema = z.object({
@@ -23,6 +24,21 @@ export const statisticalTestSchema = z.object({
 });
 
 export type StatisticalTest = z.infer<typeof statisticalTestSchema>;
+
+const groupStatsSchema = z.object({
+  name: z.string(),
+  mean: z.number(),
+  sd: z.number(),
+  samples: z.number(),
+});
+
+export const statisticalTestInputSchema = z.object({
+  group1: groupStatsSchema,
+  group2: groupStatsSchema,
+  test: z.string(),
+});
+export type StatisticalTestInput = z.infer<typeof statisticalTestInputSchema>;
+
 
 export const formSchema = z.object({
   analysisName: z.string().optional(),
