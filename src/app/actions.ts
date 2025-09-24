@@ -19,10 +19,6 @@ const standardPointSchema = z.object({
 const formSchema = z.object({
   groups: z.array(groupSchema),
   standardCurve: z.array(standardPointSchema),
-  absorbanceRange: z.object({
-    min: z.number(),
-    max: z.number(),
-  }),
   statisticalTest: z.string(),
   pValue: z.string(),
 });

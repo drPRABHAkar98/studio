@@ -78,15 +78,6 @@ const formSchema = z.object({
   standardCurve: z
     .array(standardPointSchema)
     .min(2, "At least two points are needed for the curve."),
-  absorbanceRange: z
-    .object({
-      min: z.coerce.number({ invalid_type_error: "Must be a number." }),
-      max: z.coerce.number({ invalid_type_error: "Must be a number." }),
-    })
-    .refine((data) => data.min < data.max, {
-      message: "Min must be less than Max",
-      path: ["min"],
-    }),
   statisticalTest: z.string(),
   pValue: z.string(),
 });
@@ -123,7 +114,6 @@ export default function Home() {
         { concentration: 20, absorbance: 0.4 },
         { concentration: 30, absorbance: 0.6 },
       ],
-      absorbanceRange: { min: 0, max: 2 },
       statisticalTest: "t-test",
       pValue: "0.05",
     },
@@ -183,7 +173,7 @@ export default function Home() {
         return;
     }
     
-    const slope = (lastAbsorbance - firstAbsorbance) / (firstPoint.concentration - lastPoint.concentration);
+    const slope = (lastAbsorbance - firstAbsorbance) / (lastPoint.concentration - firstPoint.concentration);
 
     for (let i = 1; i < points.length - 1; i++) {
         const point = points[i];
@@ -538,35 +528,6 @@ export default function Home() {
                         <Wand2 className="mr-2 h-4 w-4" /> Auto-fill Absorbance
                       </Button>
                     </div>
-                    <Separator />
-                    <div className="grid grid-cols-2 gap-4">
-                       <FormField
-                      control={form.control}
-                      name="absorbanceRange.min"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Min Absorbance</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="any" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="absorbanceRange.max"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Max Absorbance</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="any" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    </div>
                   </CardContent>
                 </Card>
 
@@ -636,9 +597,7 @@ export default function Home() {
                           <TableBody>
                             <TableRow>
                               {group.absorbanceValues.map((value, index) => (
-                                <TableCell key={index} className={cn("text-center font-mono", 
-                                  (value < form.getValues("absorbanceRange.min") || value > form.getValues("absorbanceRange.max")) && 'text-destructive font-bold'
-                                )}>
+                                <TableCell key={index} className={cn("text-center font-mono")}>
                                   {value.toFixed(4)}
                                 </TableCell>
                               ))}
@@ -650,7 +609,7 @@ export default function Home() {
                   ))}
                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Info className="h-4 w-4" />
-                      <span>Values in <strong className="text-destructive">red</strong> are outside the specified acceptable absorbance range.</span>
+                      <span>Values may fall outside a normal absorbance range.</span>
                   </div>
                 </div>
               </CardContent>
