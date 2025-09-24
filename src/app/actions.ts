@@ -29,7 +29,8 @@ const formSchema = z.object({
 
 export type AnalysisResult = {
   standardCurve: {
-    equation: string;
+    m: number;
+    c: number;
     rSquare: number;
   };
   groupResults: {
@@ -53,6 +54,7 @@ export async function runAnalysis(
     }
 
     const groupResults = [];
+    const standardCurveEquation = `y = ${regression.m.toFixed(4)}x + ${regression.c.toFixed(4)}`;
 
     // 2. Individual Sample Absorbance Calculation for each group
     for (const group of groups) {
@@ -60,7 +62,7 @@ export async function runAnalysis(
         meanConcentration: group.mean,
         standardDeviation: group.sd,
         samplesPerGroup: group.samples,
-        standardCurveEquation: regression.equation,
+        standardCurveEquation: standardCurveEquation,
       };
 
       const result = await absorbanceValueTraceback(aiInput);
@@ -72,7 +74,8 @@ export async function runAnalysis(
 
     return {
       standardCurve: {
-        equation: regression.equation,
+        m: regression.m,
+        c: regression.c,
         rSquare: regression.rSquare,
       },
       groupResults,

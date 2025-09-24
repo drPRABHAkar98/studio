@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import * as z from "zod";
@@ -16,6 +17,7 @@ import {
   Calculator,
   Sigma,
   Wand2,
+  CheckCircle2,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -91,6 +93,16 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Helper function to calculate standard deviation
+const calculateSD = (data: number[]): number => {
+    const n = data.length;
+    if (n < 2) return 0;
+    const mean = data.reduce((a, b) => a + b) / n;
+    const variance = data.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
+    return Math.sqrt(variance);
+};
+
+
 export default function Home() {
   const { toast } = useToast();
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
@@ -146,7 +158,7 @@ export default function Home() {
       });
       return;
     }
-
+    
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
 
@@ -170,13 +182,18 @@ export default function Home() {
         });
         return;
     }
-
+    
     const slope = (lastAbsorbance - firstAbsorbance) / (lastPoint.concentration - firstPoint.concentration);
 
     for (let i = 1; i < points.length - 1; i++) {
-        const concentration = points[i].concentration;
-        const absorbance = firstAbsorbance + slope * (concentration - firstPoint.concentration);
-        updateStandardPoint(i, { ...points[i], absorbance: parseFloat(absorbance.toFixed(4)) });
+        const point = points[i];
+        const concentration = typeof point.concentration === 'string' ? parseFloat(point.concentration) : point.concentration;
+        const firstConc = typeof firstPoint.concentration === 'string' ? parseFloat(firstPoint.concentration) : firstPoint.concentration;
+        
+        if(isNaN(concentration) || isNaN(firstConc)) continue;
+
+        const absorbance = firstAbsorbance + slope * (concentration - firstConc);
+        updateStandardPoint(i, { ...point, absorbance: parseFloat(absorbance.toFixed(4)) });
     }
 
     toast({
@@ -208,6 +225,35 @@ export default function Home() {
       setIsLoading(false);
     }
   }
+
+  // Derived state for forward test results
+  const forwardTestResults = React.useMemo(() => {
+    if (!analysisResult) return null;
+
+    const { m, c } = analysisResult.standardCurve;
+
+    return analysisResult.groupResults.map(group => {
+      const absorbanceMean = group.absorbanceValues.reduce((a, b) => a + b, 0) / group.absorbanceValues.length;
+      const absorbanceSD = calculateSD(group.absorbanceValues);
+
+      const calculatedConcentrations = group.absorbanceValues.map(abs => (abs - c) / m);
+      const concentrationMean = calculatedConcentrations.reduce((a, b) => a + b, 0) / calculatedConcentrations.length;
+      const concentrationSD = calculateSD(calculatedConcentrations);
+
+      return {
+        groupName: group.groupName,
+        absorbanceMean,
+        absorbanceSD,
+        sampleData: group.absorbanceValues.map((abs, i) => ({
+            sample: i + 1,
+            absorbance: abs,
+            concentration: calculatedConcentrations[i],
+        })),
+        concentrationMean,
+        concentrationSD,
+      };
+    });
+  }, [analysisResult]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -386,7 +432,7 @@ export default function Home() {
                         <FormItem>
                           <FormLabel>Significance Level (p)</FormLabel>
                            <Select
-                            onValueChange={field.onChange}
+                            onValuechange={field.onChange}
                             defaultValue={field.value}
                           >
                             <FormControl>
@@ -543,65 +589,139 @@ export default function Home() {
         </Form>
 
         {analysisResult && (
-          <Card className="mt-8">
-            <CardHeader>
-              <CardTitle className="font-headline text-xl">
-                4. Analysis Results
-              </CardTitle>
-              <CardDescription>
-                Review the calculated standard curve and traced-back absorbance values.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div>
-                <h3 className="font-headline text-lg font-semibold">Standard Curve</h3>
-                <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-muted/50 p-4">
-                  <p className="text-sm font-medium">
-                    Equation: <span className="font-mono text-primary">{analysisResult.standardCurve.equation}</span>
-                  </p>
-                  <p className="text-sm font-medium">
-                    R² Value: <span className="font-mono text-primary">{analysisResult.standardCurve.rSquare.toFixed(4)}</span>
-                  </p>
+          <div className="mt-8 space-y-8">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FlaskRound className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="font-headline text-xl">
+                      4. TraceBack Analysis Results
+                    </CardTitle>
+                    <CardDescription>
+                      Review the calculated standard curve and traced-back absorbance values.
+                    </CardDescription>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="space-y-4">
-                 <h3 className="font-headline text-lg font-semibold">TraceBack Absorbance Values</h3>
-                {analysisResult.groupResults.map((group) => (
-                  <div key={group.groupName}>
-                     <h4 className="font-semibold text-foreground">{group.groupName}</h4>
-                    <div className="mt-2 overflow-x-auto rounded-lg border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            {group.absorbanceValues.map((_, index) => (
-                              <TableHead key={index} className="text-center">Sample {index + 1}</TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            {group.absorbanceValues.map((value, index) => (
-                              <TableCell key={index} className={cn("text-center font-mono", 
-                                (value < form.getValues("absorbanceRange.min") || value > form.getValues("absorbanceRange.max")) && 'text-destructive font-bold'
-                              )}>
-                                {value.toFixed(4)}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        </TableBody>
-                      </Table>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-headline text-lg font-semibold">Standard Curve</h3>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-muted/50 p-4">
+                    <p className="text-sm font-medium">
+                      Equation: <span className="font-mono text-primary">{`y = ${analysisResult.standardCurve.m.toFixed(4)}x + ${analysisResult.standardCurve.c.toFixed(4)}`}</span>
+                    </p>
+                    <p className="text-sm font-medium">
+                      R² Value: <span className="font-mono text-primary">{analysisResult.standardCurve.rSquare.toFixed(4)}</span>
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                   <h3 className="font-headline text-lg font-semibold">TraceBack Absorbance Values</h3>
+                  {analysisResult.groupResults.map((group) => (
+                    <div key={group.groupName}>
+                       <h4 className="font-semibold text-foreground">{group.groupName}</h4>
+                      <div className="mt-2 overflow-x-auto rounded-lg border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {group.absorbanceValues.map((_, index) => (
+                                <TableHead key={index} className="text-center">Sample {index + 1}</TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              {group.absorbanceValues.map((value, index) => (
+                                <TableCell key={index} className={cn("text-center font-mono", 
+                                  (value < form.getValues("absorbanceRange.min") || value > form.getValues("absorbanceRange.max")) && 'text-destructive font-bold'
+                                )}>
+                                  {value.toFixed(4)}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  ))}
+                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Info className="h-4 w-4" />
+                      <span>Values in <strong className="text-destructive">red</strong> are outside the specified acceptable absorbance range.</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {forwardTestResults && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <CardTitle className="font-headline text-xl">
+                        5. Forward Test Results (Validation)
+                      </CardTitle>
+                      <CardDescription>
+                        Concentrations recalculated from absorbance values to verify the model.
+                      </CardDescription>
                     </div>
                   </div>
-                ))}
-                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Info className="h-4 w-4" />
-                    <span>Values in <strong className="text-destructive">red</strong> are outside the specified acceptable absorbance range.</span>
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {forwardTestResults.map((group) => {
+                      const originalGroup = form.getValues('groups').find(g => g.name === group.groupName);
+                      return (
+                        <div key={group.groupName} className="space-y-4">
+                            <h3 className="font-headline text-lg font-semibold text-foreground">{group.groupName}</h3>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="rounded-lg border bg-muted/50 p-4">
+                                    <h4 className="text-sm font-medium text-muted-foreground">Original Input Data</h4>
+                                    <p className="mt-1 text-2xl font-semibold">
+                                        {originalGroup?.mean.toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {originalGroup?.sd.toFixed(2)}</span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Mean Conc. ± SD</p>
+                                </div>
+                                <div className="rounded-lg border bg-muted/50 p-4">
+                                    <h4 className="text-sm font-medium text-muted-foreground">Forward Test Result</h4>
+                                    <p className="mt-1 text-2xl font-semibold">
+                                        {group.concentrationMean.toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {group.concentrationSD.toFixed(2)}</span>
+                                    </p>
+                                     <p className="text-xs text-muted-foreground">Recalculated Mean Conc. ± SD</p>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="text-center">Sample</TableHead>
+                                            <TableHead className="text-center">TraceBack Absorbance</TableHead>
+                                            <TableHead className="text-center">Recalculated Conc.</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {group.sampleData.map(sample => (
+                                            <TableRow key={sample.sample}>
+                                                <TableCell className="text-center font-medium">{sample.sample}</TableCell>
+                                                <TableCell className="text-center font-mono">{sample.absorbance.toFixed(4)}</TableCell>
+                                                <TableCell className="text-center font-mono text-primary">{sample.concentration.toFixed(4)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                      )
+                  })}
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </main>
     </div>

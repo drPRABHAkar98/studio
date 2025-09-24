@@ -2,11 +2,10 @@ export function calculateLinearRegression(points: { x: number; y: number }[]): {
   m: number;
   c: number;
   rSquare: number;
-  equation: string;
 } {
   const n = points.length;
   if (n < 2) {
-    return { m: 0, c: 0, rSquare: 0, equation: "y = 0x + 0" };
+    return { m: NaN, c: NaN, rSquare: 0 };
   }
 
   let sumX = 0;
@@ -28,10 +27,7 @@ export function calculateLinearRegression(points: { x: number; y: number }[]): {
   const denominator = n * sumX2 - sumX * sumX;
   if (denominator === 0) {
     // This case happens if all x values are the same.
-    // The line is vertical, so we can't represent it as y=mx+c.
-    // We'll return a horizontal line as a fallback.
-    const avgY = sumY / n;
-    return { m: 0, c: avgY, rSquare: 0, equation: `y = 0x + ${avgY.toFixed(4)}` };
+    return { m: NaN, c: NaN, rSquare: 0 };
   }
   
   const m = (n * sumXY - sumX * sumY) / denominator;
@@ -43,11 +39,11 @@ export function calculateLinearRegression(points: { x: number; y: number }[]): {
   );
   
   if (rDenominator === 0) {
-    return { m, c, rSquare: 1, equation: `y = ${m.toFixed(4)}x ${c >= 0 ? '+' : '-'} ${Math.abs(c).toFixed(4)}` };
+    return { m, c, rSquare: 1 };
   }
 
   const r = rNumerator / rDenominator;
   const rSquare = r * r;
 
-  return { m, c, rSquare, equation: `y = ${m.toFixed(4)}x ${c >= 0 ? '+' : '-'} ${Math.abs(c).toFixed(4)}` };
+  return { m, c, rSquare };
 }
