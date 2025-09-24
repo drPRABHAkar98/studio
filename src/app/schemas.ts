@@ -16,6 +16,10 @@ export const standardPointSchema = z.object({
 });
 
 export const formSchema = z.object({
+  analysisName: z.string().optional(),
+  units: z.string().optional(),
+  date: z.string().optional(),
+  experimentName: z.string().optional(),
   groups: z.array(groupSchema).min(1, "At least one group is required."),
   standardCurve: z
     .array(standardPointSchema)

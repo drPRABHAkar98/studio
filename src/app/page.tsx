@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useFieldArray, useForm } from "react-hook-form";
 import * as z from "zod";
 import { useState } from "react";
+import Papa from "papaparse";
 import {
   FlaskConical,
   Plus,
@@ -19,6 +20,8 @@ import {
   Wand2,
   CheckCircle2,
   Sparkles,
+  Download,
+  BookUser,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -83,6 +86,10 @@ export default function Home() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      analysisName: "My Analysis",
+      units: "ng/mL",
+      date: new Date().toISOString().split("T")[0],
+      experimentName: "Experiment 1",
       groups: [
         { name: "Normal", mean: 0, sd: 0, samples: 3 },
         { name: "Diseased", mean: 0, sd: 0, samples: 3 },
@@ -282,6 +289,47 @@ export default function Home() {
   }, [analysisResult]);
 
   const watchedGroups = form.watch('groups');
+  
+  const handleExport = () => {
+    if (!forwardTestResults) return;
+
+    const { analysisName, units, date, experimentName } = form.getValues();
+
+    const analysisDetails = [
+      { "Analysis Name": analysisName, "Units": units, "Date": date, "Experiment Name": experimentName },
+      {} // blank row
+    ];
+
+    const dataForCsv = forwardTestResults.flatMap(group =>
+      group.sampleData.map(sample => ({
+        Group: group.groupName,
+        Sample: sample.sample,
+        Absorbance: sample.absorbance.toFixed(4),
+        'Group Mean Absorbance': group.absorbanceMean.toFixed(4),
+        'Group SD Absorbance': group.absorbanceSD.toFixed(4),
+        'Recalculated Conc.': sample.concentration.toFixed(4),
+        'Group Mean Conc.': group.concentrationMean.toFixed(4),
+        'Group SD Conc.': group.concentrationSD.toFixed(4),
+      }))
+    );
+
+    const csv = Papa.unparse(analysisDetails.concat(dataForCsv));
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${analysisName || 'analysis'}-results.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+     toast({
+      title: "Export Successful",
+      description: "Your data has been downloaded as a CSV file.",
+    });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -297,6 +345,78 @@ export default function Home() {
       <main className="container mx-auto p-4 md:p-6 lg:p-8">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <BookUser className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="font-headline text-xl">
+                      Analysis Details
+                    </CardTitle>
+                    <CardDescription>
+                      Enter metadata for your analysis. This will be included in the export.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <FormField
+                  control={form.control}
+                  name="analysisName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Analysis Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., ELISA Assay" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="units"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Concentration Units</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., ng/mL" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Date</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="experimentName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Experiment Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Exp 1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-start">
               <div className="space-y-8">
                 {/* Group Data */}
@@ -726,18 +846,24 @@ export default function Home() {
             {forwardTestResults && (
               <Card>
                 <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500">
-                      <CheckCircle2 className="h-6 w-6" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500">
+                        <CheckCircle2 className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="font-headline text-xl">
+                          5. Forward Test Results (Validation)
+                        </CardTitle>
+                        <CardDescription>
+                          Concentrations recalculated from absorbance values to verify the model.
+                        </CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="font-headline text-xl">
-                        5. Forward Test Results (Validation)
-                      </CardTitle>
-                      <CardDescription>
-                        Concentrations recalculated from absorbance values to verify the model.
-                      </CardDescription>
-                    </div>
+                    <Button onClick={handleExport} variant="outline" size="sm">
+                      <Download className="mr-2 h-4 w-4" />
+                      Export to CSV
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
