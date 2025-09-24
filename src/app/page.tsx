@@ -271,17 +271,12 @@ export default function Home() {
     const { m, c } = analysisResult.standardCurve;
 
     return analysisResult.groupResults.map(group => {
-      const absorbanceMean = group.absorbanceValues.reduce((a, b) => a + b, 0) / group.absorbanceValues.length;
-      const absorbanceSD = calculateSD(group.absorbanceValues);
-
       const calculatedConcentrations = group.absorbanceValues.map(abs => (abs - c) / m);
       const concentrationMean = calculatedConcentrations.reduce((a, b) => a + b, 0) / calculatedConcentrations.length;
       const concentrationSD = calculateSD(calculatedConcentrations);
 
       return {
         groupName: group.groupName,
-        absorbanceMean,
-        absorbanceSD,
         sampleData: group.absorbanceValues.map((abs, i) => ({
             sample: i + 1,
             absorbance: abs,
@@ -297,48 +292,67 @@ export default function Home() {
   
   const handleExport = () => {
     if (!analysisResult || !forwardTestResults) return;
-
-    const { analysisName, units, date, experimentName, standardCurve: standardCurveData } = form.getValues();
+  
+    const { analysisName, units, date, experimentName, standardCurve: standardCurveInputData, groups: initialGroups } = form.getValues();
     const { m, c, rSquare } = analysisResult.standardCurve;
-    
-    let csvContent:any[] = [];
-
-    // Analysis Details
-    csvContent.push({ "Analysis Name": analysisName, "Units": units, "Date": date, "Experiment Name": experimentName });
-    csvContent.push({}); // Blank row
-
-    // Standard Curve Info
-    csvContent.push({ "Standard Curve Equation": `y = ${m.toFixed(4)}x + ${c.toFixed(4)}`, "R² Value": rSquare.toFixed(4) });
-    csvContent.push({}); // Blank row
-
-    // Standard Curve Data Table
-    csvContent.push({ "Standard Curve Data": ""});
-    const standardCurveForCsv = standardCurveData.map(point => ({
-        'Std. Concentration': point.concentration,
-        'Std. Absorbance': point.absorbance
-    }));
-    csvContent = csvContent.concat(standardCurveForCsv);
-    csvContent.push({}); // Blank row
-
-    // Forward Test Results
-    csvContent.push({ "Forward Test Results": ""});
-    const dataForCsv = forwardTestResults.flatMap(group =>
-      group.sampleData.map(sample => ({
-        Group: group.groupName,
-        Sample: sample.sample,
-        Absorbance: sample.absorbance.toFixed(4),
-        'Group Mean Absorbance': group.absorbanceMean.toFixed(4),
-        'Group SD Absorbance': group.absorbanceSD.toFixed(4),
-        'Recalculated Conc.': sample.concentration.toFixed(4),
-        'Group Mean Conc.': group.concentrationMean.toFixed(4),
-        'Group SD Conc.': group.concentrationSD.toFixed(4),
-      }))
-    );
-    
-    csvContent = csvContent.concat(dataForCsv);
-
-    const csv = Papa.unparse(csvContent);
-
+  
+    let csvData: any[] = [];
+  
+    // 1. Analysis Details
+    csvData.push(["Analysis Details"]);
+    csvData.push(["Analysis Name", analysisName]);
+    csvData.push(["Experiment Name", experimentName]);
+    csvData.push(["Date", date]);
+    csvData.push(["Concentration Units", units]);
+    csvData.push([]); // Blank row
+  
+    // 2. Standard Curve Details
+    csvData.push(["Standard Curve Details"]);
+    csvData.push(["Equation", `y = ${m.toFixed(4)}x + ${c.toFixed(4)}`]);
+    csvData.push(["R-squared", rSquare.toFixed(4)]);
+    csvData.push([]); // Blank row
+    csvData.push(["Standard Curve Data"]);
+    csvData.push(["Concentration", "Absorbance"]);
+    standardCurveInputData.forEach(p => {
+      csvData.push([p.concentration, p.absorbance]);
+    });
+    csvData.push([]); // Blank row
+  
+    // 3. Group Summary
+    csvData.push(["Group Summary"]);
+    csvData.push(["Group Name", "Samples (n)", "Initial Mean Conc.", "Initial SD", "TraceBack Mean Conc.", "TraceBack SD"]);
+    forwardTestResults.forEach(result => {
+        const initialGroup = initialGroups.find(g => g.name === result.groupName);
+        if (initialGroup) {
+            csvData.push([
+                result.groupName,
+                initialGroup.samples,
+                initialGroup.mean,
+                initialGroup.sd,
+                result.concentrationMean.toFixed(4),
+                result.concentrationSD.toFixed(4)
+            ]);
+        }
+    });
+    csvData.push([]); // Blank row
+  
+    // 4. Detailed Sample Data
+    csvData.push(["Detailed Sample Data"]);
+    csvData.push(["Group", "Sample", "TraceBack Absorbance", "Calculated Concentration"]);
+    forwardTestResults.forEach(group => {
+        group.sampleData.forEach(sample => {
+            csvData.push([
+                group.groupName,
+                sample.sample,
+                sample.absorbance.toFixed(4),
+                sample.concentration.toFixed(4)
+            ]);
+        });
+    });
+  
+    // Convert array of arrays to CSV string
+    const csv = Papa.unparse(csvData);
+  
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -348,8 +362,8 @@ export default function Home() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
-     toast({
+  
+    toast({
       title: "Export Successful",
       description: "Your data has been downloaded as a CSV file.",
     });
