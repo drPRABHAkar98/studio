@@ -183,7 +183,7 @@ export default function Home() {
         return;
     }
     
-    const slope = (lastAbsorbance - firstAbsorbance) / (lastPoint.concentration - firstPoint.concentration);
+    const slope = (lastAbsorbance - firstAbsorbance) / (firstPoint.concentration - lastPoint.concentration);
 
     for (let i = 1; i < points.length - 1; i++) {
         const point = points[i];
@@ -432,7 +432,7 @@ export default function Home() {
                         <FormItem>
                           <FormLabel>Significance Level (p)</FormLabel>
                            <Select
-                            onValuechange={field.onChange}
+                            onValueChange={field.onChange}
                             defaultValue={field.value}
                           >
                             <FormControl>
@@ -683,7 +683,7 @@ export default function Home() {
                                 <div className="rounded-lg border bg-muted/50 p-4">
                                     <h4 className="text-sm font-medium text-muted-foreground">Original Input Data</h4>
                                     <p className="mt-1 text-2xl font-semibold">
-                                        {originalGroup?.mean.toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {originalGroup?.sd.toFixed(2)}</span>
+                                        {Number(originalGroup?.mean).toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {Number(originalGroup?.sd).toFixed(2)}</span>
                                     </p>
                                     <p className="text-xs text-muted-foreground">Mean Conc. ± SD</p>
                                 </div>
