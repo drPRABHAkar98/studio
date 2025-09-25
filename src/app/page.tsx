@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -565,7 +566,7 @@ export default function Home() {
                   control={form.control}
                   name="date"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col justify-end">
                       <FormLabel>Date</FormLabel>
                       <FormControl>
                         <Input type="date" {...field} />
@@ -615,12 +616,12 @@ export default function Home() {
                         key={field.id}
                         className="grid grid-cols-1 items-start gap-4 rounded-lg border p-4 md:grid-cols-[1fr_auto]"
                       >
-                        <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                        <div className="grid flex-1 auto-rows-min grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                           <FormField
                             control={form.control}
                             name={`groups.${index}.name`}
                             render={({ field }) => (
-                              <FormItem className="col-span-2 sm:col-span-3">
+                              <FormItem className="col-span-full">
                                 <FormLabel>Group Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g., Control" {...field} />
@@ -636,7 +637,7 @@ export default function Home() {
                               <FormItem>
                                 <FormLabel>Mean</FormLabel>
                                 <FormControl>
-                                  <Input type="number" step="any" {...field} />
+                                  <Input type="number" step="any" {...field} className="w-full" />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -649,7 +650,7 @@ export default function Home() {
                               <FormItem>
                                 <FormLabel>SD</FormLabel>
                                 <FormControl>
-                                  <Input type="number" step="any" {...field} />
+                                  <Input type="number" step="any" {...field} className="w-full"/>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -662,7 +663,7 @@ export default function Home() {
                               <FormItem>
                                 <FormLabel>Samples (n)</FormLabel>
                                 <FormControl>
-                                  <Input type="number" {...field} />
+                                  <Input type="number" {...field} className="w-full"/>
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -924,7 +925,7 @@ export default function Home() {
                                 <FormItem>
                                   {index === 0 && <FormLabel>Std. Conc.</FormLabel>}
                                   <FormControl>
-                                    <Input type="number" step="any" {...field} />
+                                    <Input type="number" step="any" {...field} className="w-full"/>
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -937,7 +938,7 @@ export default function Home() {
                                 <FormItem>
                                   {index === 0 && <FormLabel>Absorbance</FormLabel>}
                                   <FormControl>
-                                    <Input type="number" step="any" {...field} />
+                                    <Input type="number" step="any" {...field} className="w-full" />
                                   </FormControl>
                                   <FormMessage />
                                 </FormItem>
@@ -1148,5 +1149,7 @@ export default function Home() {
     </div>
   );
 }
+
+    
 
     
