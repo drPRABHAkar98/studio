@@ -412,7 +412,10 @@ export default function Home() {
         <div className="container mx-auto flex h-16 items-center gap-4 px-4 md:px-6">
           <FlaskConical className="h-8 w-8 text-primary" />
           <h1 className="font-headline text-xl font-bold tracking-tight text-foreground md:text-2xl">
-            TraceBack Analytics <span className="text-sm font-normal text-muted-foreground">by prabha</span>
+            TraceBack Analytics{" "}
+            <span className="text-sm font-normal text-muted-foreground">
+              by prabha
+            </span>
           </h1>
         </div>
       </header>
@@ -515,14 +518,14 @@ export default function Home() {
                     {groupFields.map((field, index) => (
                       <div
                         key={field.id}
-                        className="grid grid-cols-1 gap-4 rounded-lg border p-4 md:grid-cols-[1fr_auto]"
+                        className="grid grid-cols-1 items-start gap-4 rounded-lg border p-4 md:grid-cols-[1fr_auto]"
                       >
-                        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:grid-cols-4">
                           <FormField
                             control={form.control}
                             name={`groups.${index}.name`}
                             render={({ field }) => (
-                              <FormItem className="col-span-2">
+                              <FormItem className="sm:col-span-3 md:col-span-4">
                                 <FormLabel>Group Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g., Control" {...field} />
@@ -535,7 +538,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.mean`}
                             render={({ field }) => (
-                              <FormItem>
+                              <FormItem className="sm:col-span-1">
                                 <FormLabel>Mean Conc.</FormLabel>
                                 <FormControl>
                                   <Input type="number" step="any" {...field} />
@@ -548,7 +551,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.sd`}
                             render={({ field }) => (
-                              <FormItem>
+                              <FormItem className="sm:col-span-1">
                                 <FormLabel>SD</FormLabel>
                                 <FormControl>
                                   <Input type="number" step="any" {...field} />
@@ -561,7 +564,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.samples`}
                             render={({ field }) => (
-                              <FormItem>
+                              <FormItem className="sm:col-span-1">
                                 <FormLabel>Samples (n)</FormLabel>
                                 <FormControl>
                                   <Input type="number" {...field} />
@@ -571,7 +574,7 @@ export default function Home() {
                             )}
                           />
                         </div>
-                        <div className="flex items-end">
+                        <div className="flex h-full items-end justify-end md:justify-center">
                            <Button
                             type="button"
                             variant="ghost"
@@ -1034,5 +1037,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
