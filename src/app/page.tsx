@@ -7,7 +7,7 @@ import * as z from "zod";
 import { useState } from "react";
 import Papa from "papaparse";
 import {
-  FlaskConical,
+  Atom,
   Plus,
   Trash2,
   Loader2,
@@ -410,7 +410,7 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 w-full border-b bg-card/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center gap-4 px-4 md:px-6">
-          <FlaskConical className="h-8 w-8 text-primary" />
+          <Atom className="h-8 w-8 text-primary" />
           <h1 className="font-headline text-xl font-bold tracking-tight text-foreground md:text-2xl">
             TraceBack Analytics{" "}
             <span className="text-sm font-normal text-muted-foreground">
@@ -520,12 +520,12 @@ export default function Home() {
                         key={field.id}
                         className="grid grid-cols-1 items-start gap-4 rounded-lg border p-4 md:grid-cols-[1fr_auto]"
                       >
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                        <div className="grid flex-1 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
                           <FormField
                             control={form.control}
                             name={`groups.${index}.name`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-3 md:col-span-4">
+                              <FormItem className="sm:col-span-3">
                                 <FormLabel>Group Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g., Control" {...field} />
@@ -538,7 +538,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.mean`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-1">
+                              <FormItem>
                                 <FormLabel>Mean Conc.</FormLabel>
                                 <FormControl>
                                   <Input type="number" step="any" {...field} />
@@ -551,7 +551,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.sd`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-1">
+                              <FormItem>
                                 <FormLabel>SD</FormLabel>
                                 <FormControl>
                                   <Input type="number" step="any" {...field} />
@@ -564,7 +564,7 @@ export default function Home() {
                             control={form.control}
                             name={`groups.${index}.samples`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-1">
+                              <FormItem>
                                 <FormLabel>Samples (n)</FormLabel>
                                 <FormControl>
                                   <Input type="number" {...field} />
@@ -574,7 +574,7 @@ export default function Home() {
                             )}
                           />
                         </div>
-                        <div className="flex h-full items-end justify-end md:justify-center">
+                        <div className="flex h-full items-end justify-end md:items-center md:justify-center">
                            <Button
                             type="button"
                             variant="ghost"
