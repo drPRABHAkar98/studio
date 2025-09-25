@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -34,6 +35,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -431,14 +440,78 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 w-full border-b bg-card/80 backdrop-blur-sm">
-        <div className="container mx-auto flex h-16 items-center gap-4 px-4 md:px-6">
-          <Atom className="h-8 w-8 text-primary" />
-          <h1 className="font-headline text-xl font-bold tracking-tight text-foreground md:text-2xl">
-            TraceBack Analytics{" "}
-            <span className="text-sm font-normal text-muted-foreground">
-              by prabha
-            </span>
-          </h1>
+        <div className="container mx-auto flex h-16 items-center justify-between gap-4 px-4 md:px-6">
+          <div className="flex items-center gap-4">
+            <Atom className="h-8 w-8 text-primary" />
+            <h1 className="font-headline text-xl font-bold tracking-tight text-foreground md:text-2xl">
+              TraceBack Analytics{" "}
+              <span className="text-sm font-normal text-muted-foreground">
+                by prabha
+              </span>
+            </h1>
+          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Info className="h-5 w-5" />
+                <span className="sr-only">How to use</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="font-headline text-2xl">How to Use TraceBack Analytics</DialogTitle>
+                <DialogDescription>
+                  A step-by-step guide to running your analysis.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="prose prose-sm dark:prose-invert max-h-[60vh] overflow-y-auto pr-4 text-foreground">
+                <h3 className="font-headline">1. Analysis Details</h3>
+                <p>Start by providing metadata for your experiment, like a name for the analysis, the date, and the units you are working with. This information is optional but helpful for organizing your results and will be included in the CSV export.</p>
+
+                <h3 className="font-headline">2. Group Data</h3>
+                <p>This is where you input your summary data. For each experimental group, provide:</p>
+                <ul>
+                  <li><strong>Group Name:</strong> A unique name for the group (e.g., "Control", "Treated").</li>
+                  <li><strong>Mean:</strong> The average concentration you measured or expect.</li>
+                  <li><strong>SD:</strong> The standard deviation of the concentration.</li>
+                  <li><strong>Samples (n):</strong> The number of individual samples in that group.</li>
+                </ul>
+                <p>Click "Add Group" to add more experimental groups.</p>
+
+                <h3 className="font-headline">3. Standard Curve</h3>
+                <p>The standard curve is used to convert between concentration and a measured value, like absorbance.</p>
+                <ul>
+                  <li><strong>Using the Standard Curve:</strong> Keep the "Use Curve" toggle switched on. Input your known standard concentrations and their corresponding absorbance values. You need at least two points. Use the "Auto-fill" button to linearly interpolate values between your first and last points.</li>
+                  <li><strong>Without a Standard Curve:</strong> If you are not using absorbance data, simply turn the "Use Curve" toggle off. The analysis will then be based directly on the concentration values you provided in the Group Data section.</li>
+                </ul>
+
+                <h3 className="font-headline">4. Statistical Analysis</h3>
+                <p>Compare your groups to see if the differences are statistically significant.</p>
+                <ul>
+                  <li>Select the two groups you want to compare.</li>
+                  <li>Choose a statistical test (e.g., T-test).</li>
+                  <li>Set your desired significance level (e.g., p &lt; 0.05).</li>
+                  <li>Click "Run Test". The result and p-value will appear below.</li>
+                  <li>You can add multiple comparisons by clicking "Add Test".</li>
+                </ul>
+
+                <h3 className="font-headline">5. Run TraceBack Analysis</h3>
+                <p>Once your inputs are ready, click the main "Run TraceBack Analysis" button. The application will:</p>
+                <ol>
+                  <li>Generate a simulated dataset for each group based on your mean, SD, and sample size.</li>
+                  <li>If the standard curve is enabled, it will "trace back" from these simulated concentrations to calculate the corresponding absorbance values.</li>
+                </ol>
+
+                <h3 className="font-headline">6. Review and Export</h3>
+                <p>The results will appear at the bottom of the page.</p>
+                <ul>
+                  <li><strong>TraceBack Results:</strong> Shows the raw simulated values (either absorbance or concentration).</li>
+                  <li><strong>Forward Test (Validation):</strong> To verify the simulation, the app recalculates the mean and SD from the generated data. This should be very close to your original input.</li>
+                  <li><strong>Export to CSV:</strong> Click the "Export to CSV" button to download a complete report of your analysis, including all inputs, calculated values, and statistical test results.</li>
+                </ul>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 
@@ -531,7 +604,7 @@ export default function Home() {
                           1. Group Data
                         </CardTitle>
                         <CardDescription>
-                          Input mean concentration, SD, and sample size for each group.
+                          Input mean, SD, and sample size for each group.
                         </CardDescription>
                       </div>
                     </div>
@@ -1075,3 +1148,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
