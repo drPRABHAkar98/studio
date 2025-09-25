@@ -353,7 +353,7 @@ export default function Home() {
   
     // 3. Group Summary
     csvData.push(["Group Summary"]);
-    csvData.push(["Group Name", "Samples (n)", "Initial Mean Conc.", "Initial SD", "TraceBack Mean Conc.", "TraceBack SD"]);
+    csvData.push(["Group Name", "Samples (n)", "Initial Mean", "Initial SD", "TraceBack Mean", "TraceBack SD"]);
     forwardTestResults.forEach(result => {
         const initialGroup = initialGroups.find(g => g.name === result.groupName);
         if (initialGroup) {
@@ -542,12 +542,12 @@ export default function Home() {
                         key={field.id}
                         className="grid grid-cols-1 items-start gap-4 rounded-lg border p-4 md:grid-cols-[1fr_auto]"
                       >
-                        <div className="grid flex-1 grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-3">
+                        <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                           <FormField
                             control={form.control}
                             name={`groups.${index}.name`}
                             render={({ field }) => (
-                              <FormItem className="sm:col-span-3">
+                              <FormItem className="col-span-2 sm:col-span-3">
                                 <FormLabel>Group Name</FormLabel>
                                 <FormControl>
                                   <Input placeholder="e.g., Control" {...field} />
@@ -561,7 +561,7 @@ export default function Home() {
                             name={`groups.${index}.mean`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Mean Conc.</FormLabel>
+                                <FormLabel>Mean</FormLabel>
                                 <FormControl>
                                   <Input type="number" step="any" {...field} />
                                 </FormControl>
@@ -1033,14 +1033,14 @@ export default function Home() {
                                     <p className="mt-1 text-2xl font-semibold">
                                         {Number(originalGroup?.mean).toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {Number(originalGroup?.sd).toFixed(2)}</span>
                                     </p>
-                                    <p className="text-xs text-muted-foreground">Mean Conc. ± SD</p>
+                                    <p className="text-xs text-muted-foreground">Mean ± SD</p>
                                 </div>
                                 <div className="rounded-lg border bg-muted/50 p-4">
                                     <h4 className="text-sm font-medium text-muted-foreground">Forward Test Result</h4>
                                     <p className="mt-1 text-2xl font-semibold">
                                         {group.concentrationMean.toFixed(2)} <span className="text-lg font-medium text-muted-foreground">± {group.concentrationSD.toFixed(2)}</span>
                                     </p>
-                                     <p className="text-xs text-muted-foreground">Recalculated Mean Conc. ± SD</p>
+                                     <p className="text-xs text-muted-foreground">Recalculated Mean ± SD</p>
                                 </div>
                             </div>
                             <div className="overflow-x-auto rounded-lg border">
