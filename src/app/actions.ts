@@ -12,49 +12,61 @@ export type AnalysisResult = {
     m: number;
     c: number;
     rSquare: number;
-  };
+  } | null;
   groupResults: {
     groupName: string;
-    absorbanceValues: number[];
+    values: number[];
   }[];
 };
 
 export async function runAnalysis(
-  values: z.infer<typeof formSchema>
+  values: z.infer<typeof formSchema>,
+  useStandardCurve: boolean
 ): Promise<AnalysisResult> {
   try {
     const { groups, standardCurve } = values;
 
-    // 1. Standard Curve Calculation
-    const points = standardCurve.map(p => ({ x: p.concentration, y: p.absorbance }));
-    const regression = calculateLinearRegression(points);
+    let regression: { m: number; c: number; rSquare: number } | null = null;
+    
+    // 1. Standard Curve Calculation (if applicable)
+    if (useStandardCurve) {
+        if (!standardCurve || standardCurve.length < 2) {
+            throw new Error("Standard curve requires at least 2 points.");
+        }
+        const points = standardCurve.map(p => ({ x: p.concentration, y: p.absorbance }));
+        regression = calculateLinearRegression(points);
 
-    if (isNaN(regression.m) || isNaN(regression.c)) {
-        throw new Error("Could not calculate standard curve. Please check your data points.");
+        if (isNaN(regression.m) || isNaN(regression.c)) {
+            throw new Error("Could not calculate standard curve. Please check your data points.");
+        }
     }
+
 
     const groupResults = [];
 
-    // 2. Individual Sample Absorbance Calculation for each group
+    // 2. Individual Sample Value Calculation for each group
     for (const group of groups) {
       // Generate a normal distribution of concentration values
       const concentrationValues = generateNormalDistribution(group.mean, group.sd, group.samples);
 
-      // Convert concentration to absorbance using the standard curve
-      const absorbanceValues = concentrationValues.map(conc => (regression.m * conc) + regression.c);
+      let finalValues: number[];
+
+      if (useStandardCurve && regression) {
+        // Convert concentration to absorbance using the standard curve
+        finalValues = concentrationValues.map(conc => (regression.m * conc) + regression.c);
+      } else {
+        // If not using standard curve, the values are the generated concentrations themselves
+        finalValues = concentrationValues;
+      }
       
       groupResults.push({
         groupName: group.name,
-        absorbanceValues: absorbanceValues,
+        values: finalValues,
       });
     }
 
     return {
-      standardCurve: {
-        m: regression.m,
-        c: regression.c,
-        rSquare: regression.rSquare,
-      },
+      standardCurve: regression,
       groupResults,
     };
   } catch (error) {

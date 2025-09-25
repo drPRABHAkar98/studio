@@ -63,6 +63,8 @@ import type { AnalysisResult, StatisticalTestResult } from "./actions";
 import { runAnalysis, performStatisticalTest } from "./actions";
 import { formSchema } from "./schemas";
 import type { StatisticalTestInput, StatisticalTest } from "./schemas";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 
 // Helper function to calculate standard deviation
@@ -88,6 +90,7 @@ export default function Home() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [testResults, setTestResults] = useState<TestResultState>({});
+  const [useStandardCurve, setUseStandardCurve] = useState(true);
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -203,10 +206,19 @@ export default function Home() {
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (useStandardCurve && values.standardCurve && values.standardCurve.length < 2) {
+        toast({
+            variant: "destructive",
+            title: "Standard Curve Error",
+            description: "At least two points are needed for the standard curve.",
+        });
+        return;
+    }
+
     setIsLoading(true);
     setAnalysisResult(null);
     try {
-      const result = await runAnalysis(values);
+      const result = await runAnalysis(values, useStandardCurve);
       setAnalysisResult(result);
       toast({
         title: "Analysis Complete",
@@ -284,25 +296,28 @@ export default function Home() {
   const forwardTestResults = React.useMemo(() => {
     if (!analysisResult) return null;
 
-    const { m, c } = analysisResult.standardCurve;
+    const { m, c } = analysisResult.standardCurve || { m: 1, c: 0 };
 
     return analysisResult.groupResults.map(group => {
-      const calculatedConcentrations = group.absorbanceValues.map(abs => (abs - c) / m);
+      const calculatedConcentrations = useStandardCurve 
+        ? group.values.map(abs => (abs - c) / m)
+        : group.values;
+
       const concentrationMean = calculatedConcentrations.reduce((a, b) => a + b, 0) / calculatedConcentrations.length;
       const concentrationSD = calculateSD(calculatedConcentrations);
 
       return {
         groupName: group.groupName,
-        sampleData: group.absorbanceValues.map((abs, i) => ({
+        sampleData: group.values.map((val, i) => ({
             sample: i + 1,
-            absorbance: abs,
+            absorbance: useStandardCurve ? val : (m * calculatedConcentrations[i]) + c, // Recalculate absorbance for display if not used
             concentration: calculatedConcentrations[i],
         })),
         concentrationMean,
         concentrationSD,
       };
     });
-  }, [analysisResult]);
+  }, [analysisResult, useStandardCurve]);
 
   const watchedGroups = form.watch('groups');
   
@@ -310,8 +325,7 @@ export default function Home() {
     if (!analysisResult || !forwardTestResults) return;
   
     const { analysisName, units, date, experimentName, standardCurve: standardCurveInputData, groups: initialGroups, statisticalTests } = form.getValues();
-    const { m, c, rSquare } = analysisResult.standardCurve;
-  
+    
     let csvData: any[] = [];
   
     // 1. Analysis Details
@@ -323,16 +337,19 @@ export default function Home() {
     csvData.push([]); // Blank row
   
     // 2. Standard Curve Details
-    csvData.push(["Standard Curve Details"]);
-    csvData.push(["Equation", `y = ${m.toFixed(4)}x + ${c.toFixed(4)}`]);
-    csvData.push(["R-squared", rSquare.toFixed(4)]);
-    csvData.push([]); // Blank row
-    csvData.push(["Standard Curve Data"]);
-    csvData.push(["Concentration", "Absorbance"]);
-    standardCurveInputData.forEach(p => {
-      csvData.push([p.concentration, p.absorbance]);
-    });
-    csvData.push([]); // Blank row
+    if (useStandardCurve && analysisResult.standardCurve) {
+      const { m, c, rSquare } = analysisResult.standardCurve;
+      csvData.push(["Standard Curve Details"]);
+      csvData.push(["Equation", `y = ${m.toFixed(4)}x + ${c.toFixed(4)}`]);
+      csvData.push(["R-squared", rSquare.toFixed(4)]);
+      csvData.push([]); // Blank row
+      csvData.push(["Standard Curve Data"]);
+      csvData.push(["Concentration", "Absorbance"]);
+      (standardCurveInputData || []).forEach(p => {
+        csvData.push([p.concentration, p.absorbance]);
+      });
+      csvData.push([]); // Blank row
+    }
   
     // 3. Group Summary
     csvData.push(["Group Summary"]);
@@ -374,15 +391,20 @@ export default function Home() {
   
     // 5. Detailed Sample Data
     csvData.push(["Detailed Sample Data"]);
-    csvData.push(["Group", "Sample", "TraceBack Absorbance", "Calculated Concentration"]);
+    const detailHeaders = ["Group", "Sample"];
+    if (useStandardCurve) detailHeaders.push("TraceBack Absorbance");
+    detailHeaders.push("Calculated Concentration");
+    csvData.push(detailHeaders);
+
     forwardTestResults.forEach(group => {
         group.sampleData.forEach(sample => {
-            csvData.push([
+            const row = [
                 group.groupName,
                 sample.sample,
-                sample.absorbance.toFixed(4),
-                sample.concentration.toFixed(4)
-            ]);
+            ];
+            if (useStandardCurve) row.push(sample.absorbance.toFixed(4));
+            row.push(sample.concentration.toFixed(4));
+            csvData.push(row);
         });
     });
   
@@ -790,88 +812,100 @@ export default function Home() {
                 {/* Standard Curve Data */}
                 <Card>
                   <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <LineChart className="h-6 w-6" />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <LineChart className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <CardTitle className="font-headline text-xl">
+                            2. Standard Curve Data
+                          </CardTitle>
+                          <CardDescription>
+                            Provide data points for the standard curve.
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="font-headline text-xl">
-                          2. Standard Curve Data
-                        </CardTitle>
-                        <CardDescription>
-                          Provide data points to generate the standard curve.
-                        </CardDescription>
+                      <div className="flex items-center space-x-2">
+                          <Switch
+                              id="use-standard-curve"
+                              checked={useStandardCurve}
+                              onCheckedChange={setUseStandardCurve}
+                          />
+                          <Label htmlFor="use-standard-curve">Use Curve</Label>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="max-h-60 space-y-2 overflow-y-auto pr-2">
-                      {standardCurveFields.map((field, index) => (
-                        <div
-                          key={field.id}
-                          className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
-                        >
-                          <FormField
-                            control={form.control}
-                            name={`standardCurve.${index}.concentration`}
-                            render={({ field }) => (
-                              <FormItem>
-                                {index === 0 && <FormLabel>Std. Conc.</FormLabel>}
-                                <FormControl>
-                                  <Input type="number" step="any" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`standardCurve.${index}.absorbance`}
-                            render={({ field }) => (
-                              <FormItem>
-                                {index === 0 && <FormLabel>Absorbance</FormLabel>}
-                                <FormControl>
-                                  <Input type="number" step="any" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeStandardPoint(index)}
-                            disabled={standardCurveFields.length <= 2}
-                            aria-label="Remove point"
+                  {useStandardCurve && (
+                    <CardContent className="space-y-4">
+                      <div className="max-h-60 space-y-2 overflow-y-auto pr-2">
+                        {standardCurveFields.map((field, index) => (
+                          <div
+                            key={field.id}
+                            className="grid grid-cols-[1fr_1fr_auto] items-end gap-2"
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                     <div className="flex flex-col gap-2 sm:flex-row">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() =>
-                          appendStandardPoint({ concentration: 0, absorbance: 0 })
-                        }
-                        className="flex-1"
-                      >
-                        <Plus className="mr-2 h-4 w-4" /> Add Point
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={autoFillAbsorbance}
-                        className="flex-1"
-                        disabled={standardCurveFields.length < 2}
-                      >
-                        <Wand2 className="mr-2 h-4 w-4" /> Auto-fill Absorbance
-                      </Button>
-                    </div>
-                  </CardContent>
+                            <FormField
+                              control={form.control}
+                              name={`standardCurve.${index}.concentration`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  {index === 0 && <FormLabel>Std. Conc.</FormLabel>}
+                                  <FormControl>
+                                    <Input type="number" step="any" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name={`standardCurve.${index}.absorbance`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  {index === 0 && <FormLabel>Absorbance</FormLabel>}
+                                  <FormControl>
+                                    <Input type="number" step="any" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeStandardPoint(index)}
+                              disabled={standardCurveFields.length <= 2}
+                              aria-label="Remove point"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            appendStandardPoint({ concentration: 0, absorbance: 0 })
+                          }
+                          className="flex-1"
+                        >
+                          <Plus className="mr-2 h-4 w-4" /> Add Point
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={autoFillAbsorbance}
+                          className="flex-1"
+                          disabled={standardCurveFields.length < 2}
+                        >
+                          <Wand2 className="mr-2 h-4 w-4" /> Auto-fill Absorbance
+                        </Button>
+                      </div>
+                    </CardContent>
+                  )}
                 </Card>
 
                 <Button type="submit" className="w-full" disabled={isLoading} size="lg">
@@ -905,26 +939,30 @@ export default function Home() {
                       4. TraceBack Analysis Results
                     </CardTitle>
                     <CardDescription>
-                      Review the calculated standard curve and traced-back absorbance values.
+                      Review the calculated results from your input data.
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div>
-                  <h3 className="font-headline text-lg font-semibold">Standard Curve</h3>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-muted/50 p-4">
-                    <p className="text-sm font-medium">
-                      Equation: <span className="font-mono text-primary">{`y = ${analysisResult.standardCurve.m.toFixed(4)}x + ${analysisResult.standardCurve.c.toFixed(4)}`}</span>
-                    </p>
-                    <p className="text-sm font-medium">
-                      R² Value: <span className="font-mono text-primary">{analysisResult.standardCurve.rSquare.toFixed(4)}</span>
-                    </p>
+                {useStandardCurve && analysisResult.standardCurve && (
+                  <div>
+                    <h3 className="font-headline text-lg font-semibold">Standard Curve</h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border bg-muted/50 p-4">
+                      <p className="text-sm font-medium">
+                        Equation: <span className="font-mono text-primary">{`y = ${analysisResult.standardCurve.m.toFixed(4)}x + ${analysisResult.standardCurve.c.toFixed(4)}`}</span>
+                      </p>
+                      <p className="text-sm font-medium">
+                        R² Value: <span className="font-mono text-primary">{analysisResult.standardCurve.rSquare.toFixed(4)}</span>
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 <div className="space-y-4">
-                   <h3 className="font-headline text-lg font-semibold">TraceBack Absorbance Values</h3>
+                   <h3 className="font-headline text-lg font-semibold">
+                      {useStandardCurve ? 'TraceBack Absorbance Values' : 'Generated Concentration Values'}
+                   </h3>
                   {analysisResult.groupResults.map((group) => (
                     <div key={group.groupName}>
                        <h4 className="font-semibold text-foreground">{group.groupName}</h4>
@@ -932,14 +970,14 @@ export default function Home() {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              {group.absorbanceValues.map((_, index) => (
+                              {group.values.map((_, index) => (
                                 <TableHead key={index} className="text-center">Sample {index + 1}</TableHead>
                               ))}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             <TableRow>
-                              {group.absorbanceValues.map((value, index) => (
+                              {group.values.map((value, index) => (
                                 <TableCell key={index} className={cn("text-center font-mono")}>
                                   {value.toFixed(4)}
                                 </TableCell>
@@ -950,10 +988,10 @@ export default function Home() {
                       </div>
                     </div>
                   ))}
-                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                   {useStandardCurve && <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Info className="h-4 w-4" />
                       <span>Values may fall outside a normal absorbance range.</span>
-                  </div>
+                  </div>}
                 </div>
               </CardContent>
             </Card>
@@ -971,7 +1009,7 @@ export default function Home() {
                           5. Forward Test Results (Validation)
                         </CardTitle>
                         <CardDescription>
-                          Concentrations recalculated from absorbance values to verify the model.
+                          Concentrations recalculated from generated values to verify the model.
                         </CardDescription>
                       </div>
                     </div>
@@ -1010,7 +1048,7 @@ export default function Home() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="text-center">Sample</TableHead>
-                                            <TableHead className="text-center">TraceBack Absorbance</TableHead>
+                                            {useStandardCurve && <TableHead className="text-center">TraceBack Absorbance</TableHead>}
                                             <TableHead className="text-center">Recalculated Conc.</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -1018,7 +1056,7 @@ export default function Home() {
                                         {group.sampleData.map(sample => (
                                             <TableRow key={sample.sample}>
                                                 <TableCell className="text-center font-medium">{sample.sample}</TableCell>
-                                                <TableCell className="text-center font-mono">{sample.absorbance.toFixed(4)}</TableCell>
+                                                {useStandardCurve && <TableCell className="text-center font-mono">{sample.absorbance.toFixed(4)}</TableCell>}
                                                 <TableCell className="text-center font-mono text-primary">{sample.concentration.toFixed(4)}</TableCell>
                                             </TableRow>
                                         ))}

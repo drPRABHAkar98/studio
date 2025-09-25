@@ -48,6 +48,6 @@ export const formSchema = z.object({
   groups: z.array(groupSchema).min(1, "At least one group is required."),
   standardCurve: z
     .array(standardPointSchema)
-    .min(2, "At least two points are needed for the curve."),
+    .optional(),
   statisticalTests: z.array(statisticalTestSchema)
 });
